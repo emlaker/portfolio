@@ -1,0 +1,198 @@
+class IPinfo{
+    [System.Net.IPAddress]$IPaddress
+    [int]$prefixlength
+    [string]$interface
+    [string]$macaddress
+
+    IPinfo([System.Net.IPAddress]$IPaddress, [int]$prefixlength, [string]$interface, [string]$macaddress){
+        $this.IPaddress = $IPaddress
+        $this.prefixlength = $prefixlength
+        $this.interface = $interface
+        $this.macaddress = $macaddress
+    }
+}
+
+function Get-IPAddress{
+    param (
+        [Parameter(Mandatory = $false)]
+        # [ValidateSet("IPv4", "IPv6", "Both")]
+        [string]$AddressType = "Both"
+    )
+    <#
+        .SYNOPSIS
+        This function retrieves the IP addresses of the system, including IPv4 and IPv6 addresses.
+
+        .DESCRIPTION
+        The Get-IPAddress function retrieves the IP addresses of the system. It can filter the results based on the specified address type: IPv4, IPv6, or Both. The function returns a list of IP addresses along with their prefix length, interface alias, and MAC address.
+
+        .PARAMETER AddressType
+        The type of IP address to retrieve: "IPv4", "IPv6", or "Both". Default is "Both".
+
+        .EXAMPLE
+        Get-IPAddress -AddressType "IPv6"
+        This example retrieves all IPv6 addresses on the system.
+
+        .NOTES
+        This function is designed to work on both Windows and Linux platforms. It uses different commands to retrieve IP addresses based on the operating system.
+    #>
+    if ($IsWindows -eq $true) {
+        if ($AddressType -eq "IPv4"){
+            $windowsIPv4List = @()
+            $IPs = Get-NetIPAddress -AddressFamily IPv4
+            $adapters = Get-NetAdapter | Select-Object Name, MacAddress
+            ForEach ($IP in $IPs){
+                if ($IP.AddressFamily -eq "IPv4"){
+                    $interface = $IP.InterfaceAlias
+                    $mac = $adapters | Where-Object {$_.Name -eq $interface} | Select-Object -ExpandProperty MacAddress
+                    $windowsIPv4 = [IPinfo]::new(
+                        [System.Net.IPAddress]$IP.IPAddress,
+                        [int]$IP.PrefixLength,
+                        [string]$IP.InterfaceAlias,
+                        [string]$mac)
+                    $windowsIPv4List += $windowsIPv4
+                }
+            }
+            return $windowsIPv4List
+        }
+        elseif ($AddressType -eq "IPv6"){
+            $windowsIPv6List = @()
+            $IPs = Get-NetIPAddress -AddressFamily IPv6
+            $adapters = Get-NetAdapter | Select-Object Name, MacAddress
+            ForEach ($IP in $IPs){
+                if ($IP.AddressFamily -eq "IPv6"){
+                    $interface = $IP.InterfaceAlias
+                    $mac = $adapters | Where-Object {$_.Name -eq $interface} | Select-Object -ExpandProperty MacAddress
+                    $windowsIPv6 = [IPinfo]::new(
+                        [System.Net.IPAddress]$IP.IPAddress,
+                        [int]$IP.PrefixLength,
+                        [string]$IP.InterfaceAlias,
+                        [string]$mac)
+                    $windowsIPv6List += $windowsIPv6
+                }
+            }
+            return $windowsIPv6List
+        }
+        elseif ($AddressType -eq "Both"){
+            $windowsIPList = @()
+            $IPs = Get-NetIPAddress
+            $adapters = Get-NetAdapter | Select-Object Name, MacAddress
+            ForEach ($IP in $IPs){
+                $interface = $IP.InterfaceAlias
+                $mac = $adapters | Where-Object {$_.Name -eq $interface} | Select-Object -ExpandProperty MacAddress
+                $windowsIPBoth = [IPinfo]::new(
+                    [System.Net.IPAddress]$IP.IPAddress,
+                    [int]$IP.PrefixLength,
+                    [string]$IP.InterfaceAlias,
+                    [string]$mac)
+                $windowsIPList += $windowsIPBoth
+            }
+            return $windowsIPList
+        }
+        else {
+            Write-Warning "Must input IPv4, IPv6, or Both"
+        }
+    }
+    elseif ($IsLinux -eq $true) {
+        $interfaces = ip addr show | Select-String -Pattern "^\d+: (\S+):" | ForEach-Object {
+            $_.Matches.Groups[1].Value
+        }
+        if ($AddressType -eq "IPv4"){
+            $linuxIPv4List = @()
+            foreach ($interface in $interfaces) {
+                $macInterfaces = ip link show $interface | Select-String -Pattern "link/(ether|loopback) (\S+)" | ForEach-Object {
+                    [PSCustomObject]@{ 
+                        Type = $_.Matches.Groups[1].Value
+                        MACAddress = $_.Matches.Groups[2].Value 
+                    }
+                }
+                $IPs = ip addr show $interface | Select-String -Pattern 'inet '
+                ForEach ($IP in $IPs){
+                    [System.Net.IPAddress]$IPAddress = (($IP -split '\s+')[2] -replace '/\d+$', '')  # IPv4
+                    $ipWithPrefix = ($IP -split '\s+')[2]
+                    $prefixlength = ($ipWithPrefix -split '/')[1]
+                    $mac = $macInterfaces | Select-Object -ExpandProperty MACAddress
+                    $linuxIPv4 = [IPinfo]::new(
+                        [System.Net.IPAddress]$IPAddress,
+                        [int]$prefixlength,
+                        [string]$interface,
+                        [string]$mac)
+                    $linuxIPv4List += $linuxIPv4
+                }
+            }
+            return $linuxIPv4List
+        }
+        elseif ($AddressType -eq "IPv6"){
+            $linuxIPv6List = @()
+            foreach ($interface in $interfaces) {
+                $macInterfaces = ip link show $interface | Select-String -Pattern "link/(ether|loopback) (\S+)" | ForEach-Object {
+                    [PSCustomObject]@{ 
+                        Type = $_.Matches.Groups[1].Value
+                        MACAddress = $_.Matches.Groups[2].Value 
+                    }
+                }
+                $IPs = ip addr show $interface | Select-String -Pattern 'inet6 '
+                ForEach ($IP in $IPs){
+                    [System.Net.IPAddress]$IPAddress = (($IP -split '\s+')[2] -replace '/\d+$', '')  # IPv6
+                    $ipWithPrefix = ($IP -split '\s+')[2]
+                    $prefixlength = ($ipWithPrefix -split '/')[1]
+                    $mac = $macInterfaces | Select-Object -ExpandProperty MACAddress
+                    $linuxIPv6 = [IPinfo]::new(
+                        [System.Net.IPAddress]$IPAddress,
+                        [int]$prefixlength,
+                        [string]$interface,
+                        [string]$mac)
+                    $linuxIPv6List += $linuxIPv6
+                }
+            }
+            return $linuxIPv6List
+        }
+        elseif ($AddressType -eq "Both"){
+            $linuxIPv4List = @()
+            $linuxIPv6List = @()
+            foreach ($interface in $interfaces) {
+                $macInterfaces = ip link show $interface | Select-String -Pattern "link/(ether|loopback) (\S+)" | ForEach-Object {
+                    [PSCustomObject]@{ 
+                        Type = $_.Matches.Groups[1].Value
+                        MACAddress = $_.Matches.Groups[2].Value 
+                    }
+                }
+                $IPs = ip addr show $interface | Select-String -Pattern 'inet6? '
+                ForEach ($IP in $IPs){
+                    [System.Net.IPAddress]$IPAddress = (($IP -split '\s+')[2] -replace '/\d+$', '')
+                    $ipWithPrefix = ($IP -split '\s+')[2]
+                    $prefixlength = ($ipWithPrefix -split '/')[1]
+                    $mac = $macInterfaces | Select-Object -ExpandProperty MACAddress
+                    if ($IPAddress -match ":") {
+                        # IPv6
+                        $linuxIPv6 = [IPinfo]::new(
+                            [System.Net.IPAddress]$IPAddress,
+                            [int]$prefixlength,
+                            [string]$interface,
+                            [string]$mac
+                        )
+                        $linuxIPv6List += $linuxIPv6
+                    }
+                    else {
+                        # IPv4
+                        $linuxIPv4 = [IPinfo]::new(
+                            [System.Net.IPAddress]$IPAddress,
+                            [int]$prefixlength,
+                            [string]$interface,
+                            [string]$mac
+                        )
+                        $linuxIPv4List += $linuxIPv4
+                    }
+                }
+            }
+            return @( $linuxIPv4List; $linuxIPv6List )
+        }
+        else {
+            Write-Warning "Must input IPv4, IPv6, or Both"
+        }
+    }
+    else {
+        Write-Error "Incompatible OS"
+    }
+}
+
+Export-ModuleMember -Function * -Cmdlet * -Variable * -Alias *
