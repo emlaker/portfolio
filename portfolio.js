@@ -41,6 +41,8 @@ toggle.addEventListener('change', () => {
 
 
 navToggle.addEventListener('click', () => {
-  const expanded = navMenu.classList.toggle('active');
-  navToggle.setAttribute('aria-expanded', expanded);
+  if (window.innerWidth < 1024) { // only toggle on mobile
+    const expanded = navMenu.classList.toggle('active');
+    navToggle.setAttribute('aria-expanded', expanded);
+  }
 });

@@ -305,9 +305,63 @@ footer {
   }
 }
 
-/* On desktop, show inline menu */
-@media (min-width: 769px) {
+/* Tablet/Desktop (inline bar until 1023px) */
+@media (min-width: 769px) and (max-width: 1023px) {
+  nav ul {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 2rem;
+    position: static;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  nav {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: auto;            /* auto width fits content */
+    background: var(--accent);
+    padding: 1rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    z-index: 1000;
+  }
+
+  nav h1,
   .nav-toggle {
-    display: none; /* no burger on desktop */
+    display: none;
+  }
+
+  nav ul {
+    position: absolute;     /* absolute inside nav */
+    top: 0;
+    right: 0;
+    display: flex !important;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: transparent;
+    width: max-content;     /* shrink to fit links */
+    height: auto;
+  }
+
+  nav ul li a {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    font-weight: bold;
+    border-radius: 8px;
+    transition: background 0.3s ease;
+  }
+
+  nav ul li a:hover {
+    background: var(--primary);
+    color: #fff;
   }
 }
